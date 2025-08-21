@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Password Complexity Checker</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;background:#0e0730;color:#fff;display:grid;place-items:center;min-height:100vh;padding:24px}
+  .card{background:#151045;padding:28px;border-radius:18px;max-width:680px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  h1{margin:.2rem 0 1rem}
+  input{width:100%;padding:14px 16px;border-radius:12px;border:none;outline:0;font-size:1rem}
+  .row{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+  .pill{background:#1e195a;border-radius:999px;padding:8px 12px;font-size:.9rem;opacity:.9}
+  .bar{height:12px;border-radius:999px;background:#2a235f;overflow:hidden;margin-top:12px}
+  .bar>div{height:100%;width:0%;transition:width .25s ease;background:linear-gradient(90deg,#ff6b6b,#f7b733,#28c76f)}
+  .hint{opacity:.85;margin-top:10px;line-height:1.45}
+  .score{font-weight:700}
+  .ok{color:#28c76f} .warn{color:#f7b733} .bad{color:#ff6b6b}
+  small{opacity:.7}
+</style>
+<div class="card">
+  <h1>Password Complexity Checker</h1>
+  <input id="pw" type="password" placeholder="Type a password…" autofocus />
+  <div class="bar"><div id="bar"></div></div>
+  <div class="row" id="tags"></div>
+  <p class="hint" id="feedback"></p>
+  <small>Criteria: length, upper/lower, numbers, special chars, diversity, dictionary words, repeat patterns.</small>
+</div>
+
+<script>
+const pw = document.getElementById('pw');
+const bar = document.getElementById('bar');
+const tags = document.getElementById('tags');
+const feedback = document.getElementById('feedback');
+
+const weaklist = new Set(["password","passw0rd","123456","qwerty","iloveyou","admin","welcome","letmein","abc123"]);
+
+function entropy(bits){
+  // quick estimate based on chosen character set size
+  return Math.round(bits);
+}
+
+function check(p){
+  const t = [];
+  let score = 0;
+  if(!p){return {score:0,tags:[],msg:"Start typing a password."};}
+
+  const len = p.length;
+  const classes = {
+    lower: /[a-z]/.test(p),
+    upper: /[A-Z]/.test(p),
+    digit: /\d/.test(p),
+    special: /[^A-Za-z0-9]/.test(p),
+  };
+  const unique = new Set(p).size;
+  const repeats = /(.)\1{2,}/.test(p) || /(..)\1{1,}/.test(p);
+  const seq = /abc|123|qwe|zxc|098|cba|321/i.test(p);
+  const dictHit = weaklist.has(p.toLowerCase());
+
+  // base: length
+  score += Math.min(20, len*1.5);
+  // character classes
+  score += Object.values(classes).filter(Boolean).length * 15;
+  // uniqueness bonus
+  score += Math.min(20, unique*1.2);
+  // penalties
+  if (repeats) score -= 20;
+  if (seq) score -= 15;
+  if (dictHit) score -= 40;
+
+  // cap 0..100
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // tags
+  if (classes.lower) t.push('lowercase');
+  if (classes.upper) t.push('uppercase');
+  if (classes.digit) t.push('numbers');
+  if (classes.special) t.push('special chars');
+  if (len >= 12) t.push('12+ length');
+  if (unique >= Math.min(10,len)) t.push('diverse');
+
+  // feedback
+  let msgClass = "bad", msg = `Weak (${score}/100). Add length and mix types.`;
+  if (score >= 80){ msgClass="ok"; msg=`Strong (${score}/100). Nice! Consider a passphrase of 4–5 random words for even better memorability.`}
+  else if (score >= 60){ msgClass="warn"; msg=`Fair (${score}/100). Add more length and ensure at least 3 character types.`}
+  if (dictHit) msg = "Extremely weak: found in common passwords.";
+  if (repeats) msg += " Avoid repeated patterns.";
+  if (seq) msg += " Avoid sequences like 123/abc/qwerty.";
+  return {score, tags:t, msg, msgClass};
+}
+
+function render(res){
+  bar.style.width = res.score + "%";
+  tags.innerHTML = res.tags.map(x => `<span class="pill">${x}</span>`).join("");
+  feedback.innerHTML = `<span class="score ${res.msgClass}">${res.msg}</span>`;
+}
+
+pw.addEventListener('input', e => render(check(e.target.value)));
+render(check(""));
+</script>
+</html>
